@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Вход в систему</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .error {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .demo {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f0f7ff;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+<div class="login-box">
+    <h1>Вход в систему</h1>
+
+    <form id="loginForm">
+        <div class="input-group">
+            <label for="username">Логин</label>
+            <input
+                    type="text"
+                    id="username"
+                    placeholder="Введите логин"
+                    autocomplete="username"
+                    required
+                    minlength="3"
+                    maxlength="50"
+            >
+        </div>
+
+        <div class="input-group">
+            <label for="password">Пароль</label>
+            <input
+                    type="password"
+                    id="password"
+                    placeholder="Введите пароль"
+                    autocomplete="current-password"
+                    required
+                    minlength="6"
+            >
+        </div>
+
+        <button type="submit" id="loginBtn">Войти</button>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="demo">
+            <strong>Демо доступ:</strong><br>
+            Логин: admin<br>
+            Пароль: admin123
+        </div>
+    </form>
+</div>
+
+<script>
+    const form = document.getElementById('loginForm');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMessage = document.getElementById('errorMessage');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        // Базовая валидация
+        if (username.length < 3 || username.length > 50) {
+            showError('Логин должен быть от 3 до 50 символов');
+            return;
+        }
+
+        if (password.length < 6) {
+            showError('Пароль должен быть не менее 6 символов');
+            return;
+        }
+
+        // Блокируем кнопку
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Вход...';
+
+        try {
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Ошибка входа');
+            }
+
+            if (data.status === 'success') {
+                // Сохраняем временный токен
+                localStorage.setItem('auth_token', data.auth_token);
+
+                // Если есть QR - сохраняем
+                if (data.qr_code_url) {
+                    localStorage.setItem('qr_code_url', data.qr_code_url);
+                    localStorage.setItem('secret', data.secret);
+                    localStorage.setItem('show_qr', 'true');
+                } else {
+                    localStorage.setItem('show_qr', 'false');
+                }
+
+                // Переходим к 2FA
+                window.location.href = data.redirect || '/put_totp.html';
+            } else {
+                showError(data.error || 'Неизвестная ошибка');
+            }
+
+        } catch (error) {
+            showError(error.message || 'Ошибка соединения');
+            console.error('Ошибка входа:', error);
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Войти';
+        }
+    });
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.add('show');
+
+        setTimeout(() => {
+            errorMessage.classList.remove('show');
+        }, 5000);
+    }
+
+    // Автофокус
+    usernameInput.focus();
+
+    // Ввод по Enter
+    passwordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+</script>
+</body>
+</html>
